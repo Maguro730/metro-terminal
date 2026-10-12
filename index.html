@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f36b21">
+  <title>地铁智能出行查询终端</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-view="home-view">
+  <main class="terminal-shell" aria-labelledby="page-title">
+    <header class="top-bar">
+      <a class="brand-block brand-link" href="index.html" aria-label="返回首页">
+        <span class="brand-mark"><img src="assets/guangzhou-metro-logo.jpg" alt="广州地铁"></span>
+        <span>
+          <span class="eyebrow" data-i18n="serviceLabel">广州地铁公共服务</span>
+          <h1 id="page-title" data-i18n="pageTitle">地铁智能出行查询终端</h1>
+        </span>
+      </a>
+      <div class="station-summary" aria-label="当前车站">
+        <span class="summary-label" data-i18n="currentStation">当前车站</span>
+        <strong data-i18n="stationName">嘉禾望岗</strong>
+        <span class="line-tags" aria-label="服务线路">
+          <span class="line-tag line-2">2</span>
+          <span class="line-tag line-3">3</span>
+          <span class="line-tag line-14">14</span>
+        </span>
+      </div>
+    </header>
+
+    <section class="view" aria-labelledby="welcome-title">
+      <section class="welcome-panel">
+        <p class="welcome-kicker" data-i18n="welcomeKicker">欢迎使用</p>
+        <h2 id="welcome-title" data-i18n="welcomeTitle">从嘉禾望岗出发，查找你的下一站</h2>
+        <p class="welcome-copy" data-i18n="welcomeCopy">请选择下方服务，获取线路换乘或车站周边信息。</p>
+      </section>
+
+      <section class="service-grid" aria-label="主要服务">
+        <a class="service-card route-card" href="route.html">
+          <span class="card-icon" aria-hidden="true">↗</span>
+          <span class="card-text">
+            <strong data-i18n="routeTitle">线路查询</strong>
+            <small data-i18n="routeDescription">搜索目的地，查看乘车方向与换乘步骤</small>
+          </span>
+          <span class="card-arrow" aria-hidden="true">›</span>
+        </a>
+
+        <a class="service-card nearby-card" href="nearby.html">
+          <span class="card-icon" aria-hidden="true">⌖</span>
+          <span class="card-text">
+            <strong data-i18n="nearbyTitle">地铁周边</strong>
+            <small data-i18n="nearbyDescription">查看车站附近的景点、商场和公共地标</small>
+          </span>
+          <span class="card-arrow" aria-hidden="true">›</span>
+        </a>
+      </section>
+    </section>
+
+    <footer class="bottom-bar">
+      <p data-i18n="assistanceText">本终端提供辅助查询服务，请同时留意站内导向和安全提示。</p>
+      <button id="language-toggle" class="language-toggle" type="button" aria-label="切换语言">
+        <span class="language-option active" data-language="zh">中文</span>
+        <span class="language-divider" aria-hidden="true">/</span>
+        <span class="language-option" data-language="en">English</span>
+      </button>
+    </footer>
+  </main>
+
+  <script src="js/data/metro-data.js"></script>
+  <script src="js/data/nearby-data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

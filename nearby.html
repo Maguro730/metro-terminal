@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f36b21">
+  <title>地铁周边｜地铁智能出行查询终端</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-view="nearby-view">
+  <main class="terminal-shell" aria-labelledby="page-title">
+    <header class="top-bar">
+      <a class="brand-block brand-link" href="index.html" aria-label="返回首页">
+        <span class="brand-mark"><img src="assets/guangzhou-metro-logo.jpg" alt="广州地铁"></span>
+        <span>
+          <span class="eyebrow" data-i18n="serviceLabel">广州地铁公共服务</span>
+          <h1 id="page-title" data-i18n="pageTitle">地铁智能出行查询终端</h1>
+        </span>
+      </a>
+      <div class="station-summary" aria-label="当前车站">
+        <span class="summary-label" data-i18n="currentStation">当前车站</span>
+        <strong data-i18n="stationName">嘉禾望岗</strong>
+        <span class="line-tags" aria-label="服务线路"><span class="line-tag line-2">2</span><span class="line-tag line-3">3</span><span class="line-tag line-14">14</span></span>
+      </div>
+    </header>
+
+    <section class="view" aria-labelledby="nearby-view-title">
+      <div class="view-heading">
+        <div class="view-heading-main">
+          <a class="back-button" href="index.html">‹ <span data-i18n="backHome">返回首页</span></a>
+          <div><p class="view-kicker" data-i18n="nearbyKicker">站点周边</p><h2 id="nearby-view-title" data-i18n="nearbyViewTitle">地铁周边</h2></div>
+        </div>
+        <a class="view-switch-button" href="route.html"><span data-i18n="openRoute">线路查询</span><span aria-hidden="true">→</span></a>
+      </div>
+
+      <div class="query-panel nearby-query-panel">
+        <label for="nearby-station-select" data-i18n="nearbyStationLabel">选择车站</label>
+        <select id="nearby-station-select"></select>
+        <p class="helper-text" data-i18n="nearbyHelper">显示已整理的车站周边资料，出口和距离信息以现场指引为准。</p>
+      </div>
+      <div id="nearby-result" class="nearby-result"></div>
+    </section>
+
+    <footer class="bottom-bar">
+      <p data-i18n="assistanceText">本终端提供辅助查询服务，请同时留意站内导向和安全提示。</p>
+      <button id="language-toggle" class="language-toggle" type="button" aria-label="切换语言"><span class="language-option active" data-language="zh">中文</span><span class="language-divider" aria-hidden="true">/</span><span class="language-option" data-language="en">English</span></button>
+    </footer>
+  </main>
+
+  <script src="js/data/metro-data.js"></script>
+  <script src="js/data/nearby-data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
