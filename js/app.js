@@ -48,6 +48,8 @@ const translations = {
     nearbyNoData: "该站的周边资料正在整理中，暂不显示未经核实的地点。",
     nearbyNoDataEn: "Nearby information for this station is still being verified.",
     nearbySourceNote: "信息用于毕业设计原型展示，实际出行请以现场导向和官方信息为准。",
+    stationPickerOpen: "打开站点列表",
+    stationPickerIndex: "按首字母跳转",
     languageLabel: "切换语言"
   },
   en: {
@@ -97,6 +99,8 @@ const translations = {
     nearbyNoData: "Nearby information for this station is still being verified.",
     nearbyNoDataEn: "Nearby information for this station is still being verified.",
     nearbySourceNote: "This information is for a graduation project prototype. Follow station signs and official information for actual travel.",
+    stationPickerOpen: "Open station list",
+    stationPickerIndex: "Jump by initial",
     languageLabel: "Switch language"
   }
 };
@@ -113,7 +117,18 @@ metroLineSegments.forEach((segment) => {
   });
 });
 
-const stationIds = [...stationRegistry.keys()];
+// Most station ids already use the station's Chinese pinyin. These entries
+// cover the ids that use an English label or a shortened name instead.
+const stationPinyinSortKeys = {
+  "airport-north": "jichangbei",
+  "airport-south": "jichangnan",
+  "canton-tower": "guangzhouta",
+  "south-china-normal-university": "huashi",
+  "sun-yat-sen-memorial-hall": "jiniantang"
+};
+
+const stationPickers = new Map();
+
 function text(key) {
   return translations[currentLanguage][key] || key;
 }
@@ -127,12 +142,43 @@ function getStationLines(stationId) {
   return metroLineSegments.filter((segment) => segment.stations.some((item) => item.id === stationId));
 }
 
+function stationSortKey(item) {
+  if (currentLanguage === "zh") {
+    return stationPinyinSortKeys[item.id] || item.id.replace(/-/g, "");
+  }
+  return item.en;
+}
+
+function stationInitial(item) {
+  const key = stationSortKey(item).normalize("NFD").replace(/[^a-z]/gi, "");
+  return (key.charAt(0) || "#").toUpperCase();
+}
+
+function getSortedStationItems() {
+  return [...stationRegistry.values()].sort((a, b) => {
+    const initialOrder = stationInitial(a).localeCompare(stationInitial(b));
+    if (initialOrder !== 0) return initialOrder;
+    return stationSortKey(a).localeCompare(stationSortKey(b), currentLanguage === "zh" ? "en" : undefined, { sensitivity: "base" });
+  });
+}
+
+function getStationGroups() {
+  const groups = new Map();
+  getSortedStationItems().forEach((item) => {
+    const initial = stationInitial(item);
+    if (!groups.has(initial)) groups.set(initial, []);
+    groups.get(initial).push(item);
+  });
+  return groups;
+}
+
 function populateSelect(select, selectedId) {
   select.innerHTML = "";
-  stationIds.forEach((id) => {
+  getSortedStationItems().forEach((item) => {
+    const id = item.id;
     const option = document.createElement("option");
     option.value = id;
-    option.textContent = stationName(id);
+    option.textContent = item[currentLanguage === "zh" ? "zh" : "en"];
     option.selected = id === selectedId;
     select.appendChild(option);
   });
@@ -150,10 +196,11 @@ function populateDestinationSelect() {
   if (!select) return;
   const selectedId = select.value || selectedDestinationId;
   select.innerHTML = `<option value="" disabled ${selectedId ? "" : "selected"}>${text("destinationSelectHint")}</option>`;
-  stationIds.forEach((id) => {
+  getSortedStationItems().forEach((item) => {
+    const id = item.id;
     const option = document.createElement("option");
     option.value = id;
-    option.textContent = stationName(id);
+    option.textContent = item[currentLanguage === "zh" ? "zh" : "en"];
     option.selected = id === selectedId;
     select.appendChild(option);
   });
@@ -164,6 +211,177 @@ function populateNearbySelect() {
   if (!select) return;
   const selectedId = select.value || defaultOriginStationId;
   populateSelect(select, selectedId);
+}
+
+function closeAllStationPickers(exceptPicker = null) {
+  stationPickers.forEach((picker) => {
+    if (picker !== exceptPicker) setStationPickerOpen(picker, false);
+  });
+}
+
+function updatePickerTrigger(picker) {
+  const selectedId = picker.select.value;
+  picker.trigger.textContent = selectedId ? stationName(selectedId) : text("destinationSelectHint");
+  picker.trigger.classList.toggle("is-placeholder", !selectedId);
+}
+
+function updatePickerActiveLetter(picker) {
+  const groups = [...picker.list.querySelectorAll(".station-picker-group")];
+  if (groups.length === 0) return;
+
+  const listTop = picker.list.getBoundingClientRect().top + 8;
+  let activeLetter = groups[0].dataset.letter;
+  groups.forEach((group) => {
+    if (group.getBoundingClientRect().top <= listTop) activeLetter = group.dataset.letter;
+  });
+
+  picker.index.querySelectorAll("button[data-letter]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.letter === activeLetter);
+  });
+}
+
+function renderStationPicker(picker) {
+  const groups = getStationGroups();
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  picker.index.innerHTML = "";
+  picker.list.innerHTML = "";
+
+  letters.forEach((letter) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "station-picker-index-button";
+    button.dataset.letter = letter;
+    button.textContent = letter;
+    button.disabled = !groups.has(letter);
+    button.setAttribute("aria-label", `${letter}${button.disabled ? "" : `, ${text("stationPickerIndex")}`}`);
+    button.addEventListener("click", () => {
+      const group = picker.list.querySelector(`[data-letter="${letter}"]`);
+      if (!group) return;
+      picker.list.scrollTo({ top: group.offsetTop, behavior: "smooth" });
+      window.setTimeout(() => updatePickerActiveLetter(picker), 180);
+    });
+    picker.index.appendChild(button);
+  });
+
+  groups.forEach((items, letter) => {
+    const group = document.createElement("section");
+    group.className = "station-picker-group";
+    group.dataset.letter = letter;
+
+    const heading = document.createElement("h3");
+    heading.className = "station-picker-group-label";
+    heading.textContent = letter;
+    group.appendChild(heading);
+
+    items.forEach((item) => {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "station-picker-option";
+      option.dataset.value = item.id;
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", String(item.id === picker.select.value));
+      option.textContent = stationName(item.id);
+      option.addEventListener("click", () => {
+        picker.select.value = item.id;
+        picker.select.dispatchEvent(new Event("change", { bubbles: true }));
+        updatePickerTrigger(picker);
+        setStationPickerOpen(picker, false);
+        picker.trigger.focus();
+      });
+      group.appendChild(option);
+    });
+
+    picker.list.appendChild(group);
+  });
+
+  updatePickerTrigger(picker);
+  updatePickerActiveLetter(picker);
+}
+
+function setStationPickerOpen(picker, isOpen) {
+  picker.panel.hidden = !isOpen;
+  picker.trigger.setAttribute("aria-expanded", String(isOpen));
+  picker.wrapper.classList.toggle("is-open", isOpen);
+  if (isOpen) {
+    closeAllStationPickers(picker);
+    renderStationPicker(picker);
+    const selected = picker.list.querySelector(`[data-value="${picker.select.value}"]`);
+    if (selected) selected.scrollIntoView({ block: "nearest" });
+    updatePickerActiveLetter(picker);
+  }
+}
+
+function createStationPicker(select) {
+  if (!select || stationPickers.has(select.id)) return;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "station-picker";
+  select.parentNode.insertBefore(wrapper, select);
+  wrapper.appendChild(select);
+  select.classList.add("station-picker-native");
+  select.setAttribute("aria-hidden", "true");
+  select.tabIndex = -1;
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "station-picker-trigger";
+  trigger.id = `${select.id}-trigger`;
+  trigger.setAttribute("aria-haspopup", "listbox");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.setAttribute("aria-controls", `${select.id}-panel`);
+  trigger.setAttribute("aria-label", text("stationPickerOpen"));
+
+  const panel = document.createElement("div");
+  panel.className = "station-picker-panel";
+  panel.id = `${select.id}-panel`;
+  panel.hidden = true;
+
+  const list = document.createElement("div");
+  list.className = "station-picker-list";
+  list.setAttribute("role", "listbox");
+  list.setAttribute("aria-labelledby", trigger.id);
+
+  const index = document.createElement("nav");
+  index.className = "station-picker-index";
+  index.setAttribute("aria-label", text("stationPickerIndex"));
+
+  panel.append(list, index);
+  wrapper.append(trigger, panel);
+
+  const label = document.querySelector(`label[for="${select.id}"]`);
+  if (label) label.htmlFor = trigger.id;
+
+  const picker = { select, wrapper, trigger, panel, list, index };
+  stationPickers.set(select.id, picker);
+  trigger.addEventListener("click", () => setStationPickerOpen(picker, picker.panel.hidden));
+  trigger.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setStationPickerOpen(picker, false);
+  });
+  panel.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      setStationPickerOpen(picker, false);
+      picker.trigger.focus();
+    }
+  });
+  list.addEventListener("scroll", () => updatePickerActiveLetter(picker));
+  renderStationPicker(picker);
+}
+
+function initializeStationPickers() {
+  document.querySelectorAll("#origin-select, #destination-select, #nearby-station-select").forEach(createStationPicker);
+  document.addEventListener("click", (event) => {
+    stationPickers.forEach((picker) => {
+      if (!picker.wrapper.contains(event.target)) setStationPickerOpen(picker, false);
+    });
+  });
+}
+
+function refreshStationPickers() {
+  stationPickers.forEach((picker) => {
+    picker.trigger.setAttribute("aria-label", text("stationPickerOpen"));
+    picker.index.setAttribute("aria-label", text("stationPickerIndex"));
+    renderStationPicker(picker);
+  });
 }
 
 function segmentIndex(segment, stationId) {
@@ -410,6 +628,7 @@ function updateLanguage(language) {
   populateOriginSelect();
   populateDestinationSelect();
   populateNearbySelect();
+  refreshStationPickers();
   const nearbySelect = document.getElementById("nearby-station-select");
   if (nearbySelect) renderNearby(nearbySelect.value || defaultOriginStationId);
   const routeResult = document.getElementById("route-result");
@@ -437,6 +656,8 @@ const nearbyStationSelect = document.getElementById("nearby-station-select");
 if (nearbyStationSelect) nearbyStationSelect.addEventListener("change", (event) => {
   renderNearby(event.target.value);
 });
+
+initializeStationPickers();
 
 let initialLanguage = "zh";
 try {
