@@ -31,6 +31,7 @@ const translations = {
     nearbyHelper: "显示已整理的车站周边资料，出口和距离信息以现场指引为准。",
     routeRecommendation: "推荐路线",
     routeTerminalConfirmation: "3号线存在不同运营交路及短线车，请按站内指引确认列车终点。",
+    routeViaLines: "乘坐线路",
     routeStops: "站",
     routeTransfers: "次换乘",
     routeNoTransfer: "无需换乘",
@@ -39,12 +40,24 @@ const translations = {
     routePass: "途经",
     routeTransferAt: "在",
     routeTransferTo: "换乘",
-    routeTransferSameLine: "在该站调整乘车方向",
+    routeTransferSameLine: "换乘另一交路列车，并确认列车终点",
     routeUnsupported: "暂不支持该目的地。当前数据库覆盖2号线、3号线和14号线的部分运营区段。",
     routeSameStation: "出发站和目的地相同，无需乘车。",
     routeSearchHint: "请选择目的地站，再点击查询路线。",
+    routeVisualTitle: "线路图",
+    routeVisualDescription: "按乘车顺序展示站点和换乘节点。",
+    routeExpand: "展开完整站点",
+    routeCollapse: "收起途经站点",
+    routeBoard: "上车",
+    routeAlight: "下车",
+    routeInstructions: "乘车步骤与提醒",
+    routeOrigin: "起点",
+    routeDestination: "终点",
+    routeTransferLabel: "换乘站",
     nearbyDataTitle: "站点附近的代表性地点",
-    nearbyDataIntro: "以下为本阶段整理的公共目的地资料，未加入出口编号和步行距离。",
+    nearbyDataIntro: "按车站整理的购物、文化和公共服务地点。出行前请查看场所最新开放安排。",
+    nearbyMore: "查看更多地点",
+    nearbyLess: "收起更多地点",
     nearbyNoData: "该站的周边资料正在整理中，暂不显示未经核实的地点。",
     nearbyNoDataEn: "Nearby information for this station is still being verified.",
     nearbySourceNote: "信息用于毕业设计原型展示，实际出行请以现场导向和官方信息为准。",
@@ -82,6 +95,7 @@ const translations = {
     nearbyHelper: "Browse the prepared station information. Check station signs for exits and distances.",
     routeRecommendation: "Recommended route",
     routeTerminalConfirmation: "Line 3 uses multiple service patterns and short-turn trains; confirm the train destination from station guidance.",
+    routeViaLines: "Lines",
     routeStops: "stops",
     routeTransfers: "transfer(s)",
     routeNoTransfer: "No transfer",
@@ -90,12 +104,24 @@ const translations = {
     routePass: "Via",
     routeTransferAt: "At",
     routeTransferTo: "change to",
-    routeTransferSameLine: "adjust direction at this station",
+    routeTransferSameLine: "Change trains to the other service pattern; confirm the train destination",
     routeUnsupported: "This destination is not supported yet. The local database currently covers selected operating sections of Lines 2, 3 and 14.",
     routeSameStation: "The origin and destination are the same station.",
     routeSearchHint: "Choose a destination station, then find the route.",
+    routeVisualTitle: "Route diagram",
+    routeVisualDescription: "Stations and transfer nodes shown in travel order.",
+    routeExpand: "Show all stations",
+    routeCollapse: "Hide intermediate stations",
+    routeBoard: "Board",
+    routeAlight: "Alight",
+    routeInstructions: "Travel steps and notes",
+    routeOrigin: "Origin",
+    routeDestination: "Destination",
+    routeTransferLabel: "Transfer station",
     nearbyDataTitle: "Representative places near the station",
-    nearbyDataIntro: "This first set contains public destinations. Exit numbers and walking distances are not included yet.",
+    nearbyDataIntro: "Shopping, cultural and public-service destinations by station. Check each venue's latest visitor information before travel.",
+    nearbyMore: "Show more places",
+    nearbyLess: "Show fewer places",
     nearbyNoData: "Nearby information for this station is still being verified.",
     nearbyNoDataEn: "Nearby information for this station is still being verified.",
     nearbySourceNote: "This information is for a graduation project prototype. Follow station signs and official information for actual travel.",
@@ -107,6 +133,7 @@ const translations = {
 
 let currentLanguage = "zh";
 let selectedDestinationId = "";
+const ROUTE_VISUAL_EXPAND_THRESHOLD = 8;
 
 const stationRegistry = new Map();
 metroLineSegments.forEach((segment) => {
@@ -408,6 +435,7 @@ function canTransferBetween(segment, otherSegment, stationId) {
 }
 
 function calculateRoute(originId, destinationId) {
+  if (!stationRegistry.has(originId) || !stationRegistry.has(destinationId)) return null;
   if (originId === destinationId) {
     return { stops: 0, transfers: 0, actions: [] };
   }
@@ -510,8 +538,132 @@ function routeDirection(segment, fromId, toId) {
   return stationName(end.id);
 }
 
+function routeDirectionLabel(direction) {
+  return currentLanguage === "zh" ? `往 ${direction} 方向` : `Towards ${direction}`;
+}
+
 function lineClass(number) {
   return `line-${number}`;
+}
+
+function routeSegmentLabel(segment) {
+  return currentLanguage === "zh" ? segment.nameZh : segment.nameEn;
+}
+
+function nextRideGroup(groups, startIndex) {
+  return groups.slice(startIndex).find((group) => group.type === "ride") || null;
+}
+
+function renderRouteVisualStation(stationId, flags = {}) {
+  const classes = ["route-visual-station"];
+  if (flags.isOrigin) classes.push("is-origin");
+  if (flags.isDestination) classes.push("is-destination");
+  if (flags.isTransfer) classes.push("is-transfer");
+
+  const badges = [];
+  if (flags.isOrigin) badges.push(`<span class="route-visual-badge is-origin">${text("routeOrigin")}</span>`);
+  if (flags.isTransfer) badges.push(`<span class="route-visual-badge is-transfer">${text("routeTransferLabel")}</span>`);
+  if (flags.isDestination) badges.push(`<span class="route-visual-badge is-destination">${text("routeDestination")}</span>`);
+
+  return `
+    <li class="${classes.join(" ")}" data-station-id="${stationId}">
+      <span class="route-visual-marker" aria-hidden="true"></span>
+      <span class="route-visual-station-content">
+        <strong>${stationName(stationId)}</strong>
+        ${badges.length ? `<span class="route-visual-badges">${badges.join("")}</span>` : ""}
+      </span>
+    </li>
+  `;
+}
+
+function renderRouteVisual(groups, originId, destinationId) {
+  const rideGroups = groups.filter((group) => group.type === "ride");
+  if (rideGroups.length === 0) return "";
+
+  const firstRide = rideGroups[0];
+  const lastRide = rideGroups[rideGroups.length - 1];
+  let html = `
+    <section class="route-visual-panel" aria-labelledby="route-visual-title">
+      <div class="route-visual-heading">
+        <div>
+          <h4 id="route-visual-title">${text("routeVisualTitle")}</h4>
+          <p>${text("routeVisualDescription")}</p>
+        </div>
+      </div>
+      <div class="route-visual-flow">
+  `;
+
+  groups.forEach((group, index) => {
+    if (group.type !== "ride") return;
+
+    const segment = metroLineSegments.find((item) => item.id === group.segmentId);
+    if (!segment) return;
+    const firstStationId = group.stationIds[0];
+    const lastStationId = group.stationIds[group.stationIds.length - 1];
+    const previousGroup = groups[index - 1];
+    const startsAfterTransfer = previousGroup && previousGroup.type === "transfer";
+    const transferAfter = groups[index + 1] && groups[index + 1].type === "transfer"
+      ? groups[index + 1]
+      : null;
+    const followingRide = transferAfter ? nextRideGroup(groups, index + 2) : null;
+    const followingSegment = followingRide
+      ? metroLineSegments.find((item) => item.id === followingRide.segmentId)
+      : null;
+    const stationCount = Math.max(0, group.stationIds.length - 1);
+    const isOpen = stationCount <= ROUTE_VISUAL_EXPAND_THRESHOLD;
+    const lineName = routeSegmentLabel(segment);
+    const direction = routeDirection(segment, firstStationId, lastStationId);
+    const stationItems = group.stationIds.map((stationId) => renderRouteVisualStation(stationId, {
+      isOrigin: index === groups.indexOf(firstRide) && stationId === originId,
+      isDestination: index === groups.indexOf(lastRide) && stationId === destinationId,
+      isTransfer: (transferAfter && stationId === transferAfter.stationId)
+        || (startsAfterTransfer && stationId === previousGroup.stationId)
+    })).join("");
+
+    html += `
+      <details class="route-visual-segment" data-segment-id="${segment.id}" style="--route-line-color: ${segment.color};"${isOpen ? " open" : ""}>
+        <summary class="route-visual-segment-summary">
+          <span class="route-visual-summary-head">
+            <span class="line-pill ${lineClass(segment.number)}">${lineName}</span>
+            <span>${stationCount} ${text("routeStops")}</span>
+          </span>
+          <span class="route-visual-direction">${routeDirectionLabel(direction)}</span>
+          <span class="route-visual-mini">
+            <span class="route-mini-stop"><span class="route-mini-marker" aria-hidden="true"></span><strong>${stationName(firstStationId)}</strong><span class="route-mini-label">${startsAfterTransfer ? text("routeTransferLabel") : text("routeOrigin")}</span></span>
+            <span class="route-mini-stop"><span class="route-mini-marker" aria-hidden="true"></span><strong>${stationName(lastStationId)}</strong><span class="route-mini-label">${transferAfter ? text("routeTransferLabel") : text("routeDestination")}</span></span>
+          </span>
+          <span class="route-visual-disclosure">
+            <span class="when-closed">${text("routeExpand")} ▾</span>
+            <span class="when-open">${text("routeCollapse")} ▴</span>
+          </span>
+        </summary>
+        <ol class="route-visual-stations" aria-label="${lineName}">${stationItems}</ol>
+      </details>
+    `;
+
+    if (transferAfter && followingSegment) {
+      const transferInstruction = segment.number === followingSegment.number
+        ? text("routeTransferSameLine")
+        : `${text("routeTransferTo")} ${routeSegmentLabel(followingSegment)}`;
+      const followingDirection = routeDirection(followingSegment, followingRide.stationIds[0], followingRide.stationIds[followingRide.stationIds.length - 1]);
+      html += `
+        <div class="route-transfer-card" role="group" aria-label="${text("routeTransferAt")} ${stationName(transferAfter.stationId)}">
+          <span class="route-transfer-icon" aria-hidden="true">⇄</span>
+          <div>
+            <strong>${text("routeTransferAt")} ${stationName(transferAfter.stationId)}</strong>
+            <p class="route-transfer-lines">
+              <span class="line-pill ${lineClass(segment.number)}">${lineName}</span>
+              <span class="route-transfer-arrow" aria-hidden="true">→</span>
+              <span class="line-pill ${lineClass(followingSegment.number)}">${routeSegmentLabel(followingSegment)}</span>
+            </p>
+            <p class="route-transfer-direction">${transferInstruction} · ${routeDirectionLabel(followingDirection)}</p>
+          </div>
+        </div>
+      `;
+    }
+  });
+
+  return `${html}</div></section>`;
 }
 
 function renderRouteResult() {
@@ -543,7 +695,7 @@ function renderRouteResult() {
   const transferText = route.transfers === 0 ? text("routeNoTransfer") : `${route.transfers} ${text("routeTransfers")}`;
   const groups = groupRouteActions(route);
   const hasLine3Service = groups.some((group) => group.type === "ride" && ["line-3-main", "line-3-north"].includes(group.segmentId));
-  const operationNote = hasLine3Service ? ` · ${text("routeTerminalConfirmation")}` : "";
+  const operationNote = hasLine3Service ? `<p class="route-operation-note">${text("routeTerminalConfirmation")}</p>` : "";
   const steps = groups.map((group, index) => {
     if (group.type === "transfer") {
       const fromSegment = metroLineSegments.find((item) => item.id === group.fromSegmentId);
@@ -558,25 +710,30 @@ function renderRouteResult() {
     const segment = metroLineSegments.find((item) => item.id === group.segmentId);
     const first = group.stationIds[0];
     const last = group.stationIds[group.stationIds.length - 1];
-    const names = group.stationIds.map((id) => stationName(id)).join(currentLanguage === "zh" ? "、" : " → ");
     const lineName = currentLanguage === "zh" ? segment.nameZh : segment.nameEn;
-    return `<li class="route-step"><span class="step-number">${index + 1}</span><div class="step-content"><strong><span class="line-pill ${lineClass(segment.number)}">${lineName}</span>${text("routeRide")} ${routeDirection(segment, first, last)} ${text("routeToward")}</strong><p>${text("routePass")}：${names}</p></div></li>`;
+    return `<li class="route-step"><span class="step-number">${index + 1}</span><div class="step-content"><strong><span class="line-pill ${lineClass(segment.number)}">${lineName}</span>${routeDirectionLabel(routeDirection(segment, first, last))}</strong><p>${text("routeBoard")}：${stationName(first)} → ${text("routeAlight")}：${stationName(last)}</p></div></li>`;
   }).join("");
 
   resultElement.innerHTML = `
     <div class="result-heading">
       <div>
         <h3>${stationName(originId)} → ${stationName(destinationId)}</h3>
-        <p>${text("routeRecommendation")} · ${text("routePass")} ${groups.filter((item) => item.type === "ride").map((item) => { const segment = metroLineSegments.find((candidate) => candidate.id === item.segmentId); return currentLanguage === "zh" ? segment.nameZh : segment.nameEn; }).join(currentLanguage === "zh" ? "、" : ", ")}${operationNote}</p>
+        <p>${text("routeRecommendation")} · ${text("routeViaLines")} ${groups.filter((item) => item.type === "ride").map((item) => { const segment = metroLineSegments.find((candidate) => candidate.id === item.segmentId); return currentLanguage === "zh" ? segment.nameZh : segment.nameEn; }).join(currentLanguage === "zh" ? "、" : ", ")}</p>
       </div>
       <div class="result-stat">${route.stops} ${text("routeStops")}<br>${transferText}</div>
     </div>
+    <h4 class="route-instructions-title">${text("routeInstructions")}</h4>
     <ol class="route-step-list">${steps}</ol>
+    ${operationNote}
+    ${renderRouteVisual(groups, originId, destinationId)}
   `;
 }
 
 function renderNearby(stationId) {
   const result = document.getElementById("nearby-result");
+  if (!result) return;
+  const keepMoreOpen = result.dataset.stationId === stationId && Boolean(result.querySelector(".nearby-more[open]"));
+  result.dataset.stationId = stationId;
   const data = nearbyData[stationId];
   const name = stationName(stationId);
   if (!data) {
@@ -589,9 +746,12 @@ function renderNearby(stationId) {
     const typeKey = currentLanguage === "zh" ? "typeZh" : "typeEn";
     const descriptionKey = currentLanguage === "zh" ? "descriptionZh" : "descriptionEn";
     return `<article class="nearby-item"><span class="nearby-type">${item[typeKey]}</span><h4>${item[nameKey]}</h4><p>${item[descriptionKey]}</p></article>`;
-  }).join("");
+  });
 
-  result.innerHTML = `<h3>${currentLanguage === "zh" ? data.stationZh : data.stationEn}</h3><p>${text("nearbyDataIntro")}</p><div class="nearby-list">${items}</div><p class="nearby-empty">${text("nearbySourceNote")}</p>`;
+  const more = items.length > 4
+    ? `<details class="nearby-more"${keepMoreOpen ? " open" : ""}><summary><span class="when-closed">${text("nearbyMore")} (${items.length - 4})</span><span class="when-open">${text("nearbyLess")}</span></summary><div class="nearby-list">${items.slice(4).join("")}</div></details>`
+    : "";
+  result.innerHTML = `<h3>${name}</h3><p>${text("nearbyDataIntro")}</p><div class="nearby-list">${items.slice(0, 4).join("")}</div>${more}<p class="nearby-empty">${text("nearbySourceNote")}</p>`;
 }
 
 function updatePlaceholders() {
